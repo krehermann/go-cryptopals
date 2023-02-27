@@ -1,10 +1,13 @@
 package utils
 
 import (
+	"context"
 	"encoding/hex"
 	"reflect"
 	"testing"
 
+	"github.com/pemistahl/lingua-go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -125,4 +128,24 @@ func TestFixedXor(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSet1Challenge3(t *testing.T) {
+	scoreable := make(chan string, 1)
+
+	testMsg, err := hex.DecodeString("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736")
+	assert.NoError(t, err)
+	generatorFn := func(ch chan<- string, maxCodePoint int) {
+		defer close(ch)
+		for i := 0; i < maxCodePoint; i++ {
+			cipher := byte(i)
+			decoded := XorCipher(testMsg, cipher)
+			ch <- string(decoded)
+		}
+
+	}
+	go generatorFn(scoreable, 128)
+	ls := NewLanguageScanner()
+	result, score := ls.MaxConfidence(context.Background(), lingua.English, scoreable)
+	assert.Failf(t, "hack", "got '%s' %f", result, score)
 }
