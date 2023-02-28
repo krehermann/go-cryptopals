@@ -50,24 +50,6 @@ func NewLanguageScanner() *LanguageScanner {
 	}
 }
 
-/*
-	func (s *LanguageScanner) ScanLines(r io.Reader) ([]string, error) {
-		out := make([]string, 0)
-		scanner := bufio.NewScanner(r)
-		for {
-			if !scanner.Scan() {
-				break
-			}
-			out = append(out, scanner.Text())
-		}
-
-		return out, scanner.Err()
-	}
-
-	func (s *LanguageScanner) Score(d []byte) []lingua.ConfidenceValue {
-		return s.detector.ComputeLanguageConfidenceValues(string(d))
-	}
-*/
 func (s *LanguageScanner) MaxConfidence(ctx context.Context, lang lingua.Language, scoreCh <-chan string) (string, float64) {
 	var (
 		out     string
@@ -96,4 +78,12 @@ PROCESS:
 		}
 	}
 	return out, currMax
+}
+
+func XorEncrypt(msg, key []byte) ([]byte, error) {
+	fixedKey := make([]byte, len(msg))
+	for i := 0; i < len(fixedKey); i += 1 {
+		fixedKey[i] = key[i%len(key)]
+	}
+	return FixedXor(msg, fixedKey)
 }
