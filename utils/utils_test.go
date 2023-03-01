@@ -161,3 +161,13 @@ I go crazy when I hear a cymbal`
 	assert.Nil(t, err)
 	assert.Equal(t, expected, got)
 }
+
+func TestHammingDistance(t *testing.T) {
+	s1 := "this is a test"
+	s2 := "wokka wokka!!!"
+
+	want := 37
+	got, err := HammingDistance(s1, s2)
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+}

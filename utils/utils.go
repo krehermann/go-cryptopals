@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"math"
+	"math/bits"
 
 	"github.com/pemistahl/lingua-go"
 )
@@ -86,4 +88,45 @@ func XorEncrypt(msg, key []byte) ([]byte, error) {
 		fixedKey[i] = key[i%len(key)]
 	}
 	return FixedXor(msg, fixedKey)
+}
+
+func HammingDistance(s1, s2 string) (int, error) {
+	b1, b2 := padToMatchingLen(s1, s2)
+	xor, err := FixedXor(b1, b2)
+	if err != nil {
+		return 0, err
+	}
+	cnt := 0
+	for _, b := range xor {
+		cnt += bits.OnesCount8(uint8(b))
+	}
+	return cnt, nil
+}
+
+func padToMatchingLen(s1, s2 string) ([]byte, []byte) {
+	max := int(math.Max(float64(len(s1)), float64(len(s2))))
+
+	b1 := []byte(s1)
+	b2 := []byte(s2)
+	return mustPad(b1, max), mustPad(b2, max)
+}
+
+func pad(b []byte, l int) ([]byte, error) {
+	if len(b) == l {
+		return b, nil
+	}
+	if len(b) > l {
+		return nil, fmt.Errorf("pad: input to large")
+	}
+	tmp := make([]byte, l)
+	copy(tmp, b)
+	return tmp, nil
+}
+
+func mustPad(b []byte, l int) []byte {
+	out, err := pad(b, l)
+	if err != nil {
+		panic(err)
+	}
+	return out
 }
