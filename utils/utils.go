@@ -130,3 +130,26 @@ func mustPad(b []byte, l int) []byte {
 	}
 	return out
 }
+
+func BlockDistance(data []byte, keyLen int, blocks int) (int, error) {
+	if 2*blocks*keyLen > len(data) {
+		return 0, fmt.Errorf("out of range. data length less than 2*block*keylen (%d< %d)", len(data), 2*blocks*keyLen)
+	}
+
+	dists := make([]int, 0)
+	for i := 0; i < blocks; i += 2 {
+		dist, err := HammingDistance(
+			string(data[i*keyLen:(i+1)*keyLen]),
+			string(data[(i+1)*keyLen:(i+2):keyLen]))
+		if err != nil {
+			return 0, err
+		}
+		dists = append(dists, dist)
+	}
+
+	var sum int
+	for _, d := range dists {
+		sum += d
+	}
+	return sum / keyLen, nil
+}
