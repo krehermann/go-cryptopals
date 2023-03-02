@@ -51,4 +51,5 @@ func (v *Vigenere) transpose(chunks [][]byte) [][]byte {
 		}
 	}
 
+	return transpose
 }
