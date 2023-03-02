@@ -50,5 +50,6 @@ func (v *Vigenere) transpose(chunks [][]byte) [][]byte {
 			transpose[j][i] = chunks[i][j]
 		}
 	}
+
 	return transpose
 }
