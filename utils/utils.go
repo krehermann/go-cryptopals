@@ -131,7 +131,7 @@ func mustPad(b []byte, l int) []byte {
 	return out
 }
 
-func BlockDistance(data []byte, keyLen int, blocks int) (int, error) {
+func BlockDistance(data []byte, keyLen int, blocks int) (float64, error) {
 	if 2*blocks*keyLen > len(data) {
 		return 0, fmt.Errorf("out of range. data length less than 2*block*keylen (%d< %d)", len(data), 2*blocks*keyLen)
 	}
@@ -151,5 +151,5 @@ func BlockDistance(data []byte, keyLen int, blocks int) (int, error) {
 	for _, d := range dists {
 		sum += d
 	}
-	return sum / keyLen, nil
+	return float64(sum) / float64(keyLen), nil
 }
