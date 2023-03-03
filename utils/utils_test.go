@@ -171,3 +171,77 @@ func TestHammingDistance(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 }
+
+func TestBlockDistance(t *testing.T) {
+	type args struct {
+		data   []byte
+		keyLen int
+		blocks int
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    float64
+		wantErr bool
+	}{
+		{
+			name: "zero diff l=1",
+			args: args{
+				data: []byte{0x00, 0x01,
+					0x00, 0x01},
+				keyLen: 2,
+				blocks: 1,
+			},
+			want: 0,
+		},
+		{
+			name: "zero diff l=2",
+			args: args{
+				data: []byte{0x00, 0x01, 0x00,
+					0x00, 0x01, 0x00,
+					0x00, 0x01, 0x00,
+					0x00, 0x01, 0x00},
+				keyLen: 3,
+				blocks: 2,
+			},
+			want: 0,
+		},
+		{
+			name: "one diff per block, 2 block, k=4",
+			args: args{
+				data: []byte{0x00, 0x01, 0x00, 0x00,
+					0x00, 0x01, 0x00, 0x01,
+					0x00, 0x01, 0x00, 0x3,
+					0x00, 0x01, 0x00, 0x2},
+				keyLen: 4,
+				blocks: 2,
+			},
+			want: (2. / float64(4*2)),
+		},
+
+		{
+			name: "out of bounds err",
+			args: args{
+				data: []byte{0x00, 0x01, 0x00, 0x00,
+					0x00, 0x01, 0x00, 0x01,
+					0x00, 0x01, 0x00, 0x3,
+					0x00, 0x01, 0x00, 0x2},
+				keyLen: 5,
+				blocks: 2,
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := BlockDistance(tt.args.data, tt.args.keyLen, tt.args.blocks)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BlockDistance() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("BlockDistance() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

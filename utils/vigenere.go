@@ -39,7 +39,7 @@ func (v *Vigenere) chunk(n int) [][]byte {
 	return chunks
 }
 
-func (v *Vigenere) transpose(chunks [][]byte) [][]byte {
+func transpose(chunks [][]byte) [][]byte {
 
 	transpose := make([][]byte, len(chunks[0]))
 	for i, chunk := range chunks {
