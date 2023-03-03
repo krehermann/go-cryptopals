@@ -137,13 +137,14 @@ func BlockDistance(data []byte, keyLen int, blocks int) (float64, error) {
 	}
 
 	dists := make([]int, 0)
-	for i := 0; i < blocks; i += 2 {
-		dist, err := HammingDistance(
-			string(data[i*keyLen:(i+1)*keyLen]),
-			string(data[(i+1)*keyLen:(i+2):keyLen]))
+	for i := 0; i < 2*blocks; i += 2 {
+		s1 := string(data[i*keyLen : (i+1)*keyLen])
+		s2 := string(data[(i+1)*keyLen : (i+2)*keyLen])
+		dist, err := HammingDistance(s1, s2)
 		if err != nil {
 			return 0, err
 		}
+		log.Printf("dist %s %s = %d", s1, s2, dist)
 		dists = append(dists, dist)
 	}
 
@@ -151,5 +152,5 @@ func BlockDistance(data []byte, keyLen int, blocks int) (float64, error) {
 	for _, d := range dists {
 		sum += d
 	}
-	return float64(sum) / float64(keyLen), nil
+	return float64(sum) / (float64(blocks) * float64(keyLen)), nil
 }
