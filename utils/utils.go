@@ -52,9 +52,13 @@ func NewLanguageScanner() *LanguageScanner {
 	}
 }
 
-func (s *LanguageScanner) MaxConfidence(ctx context.Context, lang lingua.Language, scoreCh <-chan string) (string, float64) {
+type Texter interface {
+	Text() string
+}
+
+func (s *LanguageScanner) MaxConfidence(ctx context.Context, lang lingua.Language, scoreCh <-chan Texter) (Texter, float64) {
 	var (
-		out     string
+		out     Texter
 		currMax float64
 	)
 PROCESS:
@@ -66,14 +70,14 @@ PROCESS:
 			if !ok {
 				break PROCESS
 			}
-			result := s.detector.ComputeLanguageConfidence(toScore, lang)
+			result := s.detector.ComputeLanguageConfidence(toScore.Text(), lang)
 			log.Printf("score for '%s': %f (%f)", toScore, result, currMax)
 			if result > currMax {
 				log.Printf("setting out = '%s': %f > %f", toScore, result, currMax)
 				currMax = result
 				out = toScore
 			} else if result == currMax {
-				if out < toScore {
+				if out.Text() < toScore.Text() {
 					out = toScore
 				}
 			}
