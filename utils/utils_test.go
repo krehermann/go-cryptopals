@@ -130,24 +130,31 @@ func TestFixedXor(t *testing.T) {
 	}
 }
 
+type TestTexter struct {
+	textToScore string
+}
+
+func (t *TestTexter) Text() string {
+	return t.textToScore
+}
 func TestSet1Challenge3(t *testing.T) {
-	scoreable := make(chan string, 1)
+	scoreable := make(chan Texter, 1)
 
 	testMsg, err := hex.DecodeString("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736")
 	assert.NoError(t, err)
-	generatorFn := func(ch chan<- string, maxCodePoint int) {
+	generatorFn := func(ch chan<- Texter, maxCodePoint int) {
 		defer close(ch)
 		for i := 0; i < maxCodePoint; i++ {
 			cipher := byte(i)
 			decoded := XorCipher(testMsg, cipher)
-			ch <- string(decoded)
+			ch <- &TestTexter{textToScore: string(decoded)}
 		}
 
 	}
 	go generatorFn(scoreable, 128)
 	ls := NewLanguageScanner()
 	result, score := ls.MaxConfidence(context.Background(), lingua.English, scoreable)
-	assert.Failf(t, "hack", "got '%s' %f", result, score)
+	t.Logf("result score %+v %f", result, score)
 }
 
 func TestSet1Challenge5(t *testing.T) {
