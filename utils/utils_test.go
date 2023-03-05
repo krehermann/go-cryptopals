@@ -132,22 +132,28 @@ func TestFixedXor(t *testing.T) {
 
 type TestTexter struct {
 	textToScore string
+	key         []byte
 }
 
 func (t *TestTexter) Text() string {
 	return t.textToScore
+
+}
+
+func (t *TestTexter) Key() []byte {
+	return t.key
 }
 func TestSet1Challenge3(t *testing.T) {
-	scoreable := make(chan Texter, 1)
+	scoreable := make(chan KeyTexter, 1)
 
 	testMsg, err := hex.DecodeString("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736")
 	assert.NoError(t, err)
-	generatorFn := func(ch chan<- Texter, maxCodePoint int) {
+	generatorFn := func(ch chan<- KeyTexter, maxCodePoint int) {
 		defer close(ch)
 		for i := 0; i < maxCodePoint; i++ {
 			cipher := byte(i)
 			decoded := XorCipher(testMsg, cipher)
-			ch <- &TestTexter{textToScore: string(decoded)}
+			ch <- &TestTexter{textToScore: string(decoded), key: []byte{byte(i)}}
 		}
 
 	}
@@ -167,6 +173,19 @@ I go crazy when I hear a cymbal`
 	got, err := XorEncrypt([]byte(msg), []byte("ICE"))
 	assert.Nil(t, err)
 	assert.Equal(t, expected, got)
+}
+
+func TestXorRoundtrip(t *testing.T) {
+	msg := "a very important message. keep it private and safe. for reals"
+	key := "secret"
+	t.Logf("msg key len %d, %d", len([]byte(msg)), len([]byte(key)))
+	// sanity check. TODO mv
+	enc, err := XorEncrypt([]byte(msg), []byte(key))
+	require.NoError(t, err)
+	t.Logf("enc %s", hex.EncodeToString(enc))
+	dec, err := XorEncrypt(enc, []byte(key))
+	require.NoError(t, err)
+	require.Equal(t, []byte(msg), dec)
 }
 
 func TestHammingDistance(t *testing.T) {

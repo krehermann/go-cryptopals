@@ -56,9 +56,18 @@ type Texter interface {
 	Text() string
 }
 
-func (s *LanguageScanner) MaxConfidence(ctx context.Context, lang lingua.Language, scoreCh <-chan Texter) (Texter, float64) {
+type Keyer interface {
+	Key() []byte
+}
+
+type KeyTexter interface {
+	Texter
+	Keyer
+}
+
+func (s *LanguageScanner) MaxConfidence(ctx context.Context, lang lingua.Language, scoreCh <-chan KeyTexter) (KeyTexter, float64) {
 	var (
-		out     Texter
+		out     KeyTexter
 		currMax float64
 	)
 PROCESS:
@@ -71,9 +80,9 @@ PROCESS:
 				break PROCESS
 			}
 			result := s.detector.ComputeLanguageConfidence(toScore.Text(), lang)
-			log.Printf("score for '%s': %f (%f)", toScore, result, currMax)
+			log.Printf("score for '%s', '%s': %f (%f)", toScore.Text(), toScore.Key(), result, currMax)
 			if result > currMax {
-				log.Printf("setting out = '%s': %f > %f", toScore, result, currMax)
+				log.Printf("setting out = '%s', '%s': %f > %f", toScore.Text(), toScore.Key(), result, currMax)
 				currMax = result
 				out = toScore
 			} else if result == currMax {
