@@ -66,6 +66,11 @@ type KeyTexter interface {
 }
 
 func (s *LanguageScanner) MaxConfidence(ctx context.Context, lang lingua.Language, scoreCh <-chan KeyTexter) (KeyTexter, float64) {
+	scoreFn := func(t Texter) float64 { return s.detector.ComputeLanguageConfidence(t.Text(), lang) }
+	return s.max(ctx, scoreFn, scoreCh)
+}
+
+func (s *LanguageScanner) max(ctx context.Context, scoreFn func(t Texter) float64, scoreCh <-chan KeyTexter) (KeyTexter, float64) {
 	var (
 		out     KeyTexter
 		currMax float64
@@ -79,7 +84,7 @@ PROCESS:
 			if !ok {
 				break PROCESS
 			}
-			result := s.detector.ComputeLanguageConfidence(toScore.Text(), lang)
+			result := scoreFn(toScore)
 			log.Printf("score for '%s', '%s': %f (%f)", toScore.Text(), toScore.Key(), result, currMax)
 			if result > currMax {
 				log.Printf("setting out = '%s', '%s': %f > %f", toScore.Text(), toScore.Key(), result, currMax)
@@ -93,6 +98,11 @@ PROCESS:
 		}
 	}
 	return out, currMax
+}
+
+func (s *LanguageScanner) SimpleEnglishMax(ctx context.Context, scoreCh <-chan KeyTexter) (KeyTexter, float64) {
+	scoreFn := func(t Texter) float64 { return SimpleEnglishScore(t.Text()) }
+	return s.max(ctx, scoreFn, scoreCh)
 }
 
 func XorEncrypt(msg, key []byte) ([]byte, error) {

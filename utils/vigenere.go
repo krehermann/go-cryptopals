@@ -110,7 +110,7 @@ func (key *KeyCandidate) findBest(data []byte) {
 				scoreCh <- c
 			}
 		}(scoreCh)
-		best, _ := ls.MaxConfidence(context.Background(), lingua.English, scoreCh)
+		best, _ := ls.SimpleEnglishMax(context.Background(), scoreCh)
 		//gross...
 		vc := best.(*blockKeyCandidate)
 		key.val[vc.blockIndex] = vc.key
