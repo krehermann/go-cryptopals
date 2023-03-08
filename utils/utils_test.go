@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/pemistahl/lingua-go"
@@ -270,4 +271,35 @@ func TestBlockDistance(t *testing.T) {
 			}
 		})
 	}
+
+	msg := "in this time of fear and confusion, ego and anger, have the courage to accept the unknowable, the inevitiability of faith and the wisdom to choose well"
+	key := "the answer"
+
+	enc, err := XorEncrypt([]byte(msg), []byte(key))
+	require.NoError(t, err)
+	expectedLen := len(key)
+
+	type res struct {
+		lngth int
+		dist  float64
+	}
+	results := make([]res, 0)
+	for i := 2; i < 2*expectedLen; i++ {
+		d, err := BlockDistance(enc, i, 3)
+		assert.NoError(t, err)
+		results = append(results, res{lngth: i, dist: d})
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].dist < results[j].dist
+	})
+
+	bestLengths := make([]int, 0)
+	for i := 0; i < 5; i++ {
+		bestLengths = append(bestLengths, results[i].lngth)
+	}
+	t.Logf("top 5 lengths %+v", results[:5])
+
+	assert.Contains(t, bestLengths, expectedLen)
+
 }
