@@ -154,7 +154,7 @@ func BlockDistance(data []byte, keyLen int, blocks int) (float64, error) {
 		return 0, fmt.Errorf("out of range. data length less than 2*block*keylen (%d< %d)", len(data), 2*blocks*keyLen)
 	}
 
-	dists := make([]int, 0)
+	var sum int
 	for i := 0; i < 2*blocks; i += 2 {
 		s1 := string(data[i*keyLen : (i+1)*keyLen])
 		s2 := string(data[(i+1)*keyLen : (i+2)*keyLen])
@@ -162,12 +162,8 @@ func BlockDistance(data []byte, keyLen int, blocks int) (float64, error) {
 		if err != nil {
 			return 0, err
 		}
-		dists = append(dists, dist)
+		sum += dist
 	}
 
-	var sum int
-	for _, d := range dists {
-		sum += d
-	}
 	return float64(sum) / (float64(blocks) * float64(keyLen)), nil
 }
