@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"math"
 	"math/bits"
 
@@ -85,15 +84,11 @@ PROCESS:
 				break PROCESS
 			}
 			result := scoreFn(toScore)
-			log.Printf("score for '%s', '%s': %f (%f)", toScore.Text(), toScore.Key(), result, currMax)
+			//			log.Printf("score for '%s', '%s': %f (%f)", toScore.Text(), toScore.Key(), result, currMax)
 			if result > currMax {
-				log.Printf("setting out = '%s', '%s': %f > %f", toScore.Text(), toScore.Key(), result, currMax)
+				//				log.Printf("setting out = '%s', '%s': %f > %f", toScore.Text(), toScore.Key(), result, currMax)
 				currMax = result
 				out = toScore
-			} else if result == currMax {
-				if out.Text() < toScore.Text() {
-					out = toScore
-				}
 			}
 		}
 	}
@@ -167,7 +162,6 @@ func BlockDistance(data []byte, keyLen int, blocks int) (float64, error) {
 		if err != nil {
 			return 0, err
 		}
-		log.Printf("dist %s %s = %d", s1, s2, dist)
 		dists = append(dists, dist)
 	}
 
