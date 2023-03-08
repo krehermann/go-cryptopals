@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
-
-	"github.com/pemistahl/lingua-go"
+	"sort"
 )
 
 type Vigenere struct {
-	data       []byte
 	candidates int
+	minKeyLen  int
+	maxKeyLen  int
 }
 
 var KeyLengthTooLarge = errors.New("key length to large")
@@ -22,15 +22,18 @@ type KeyCandidate struct {
 	val    []byte
 }
 
-func (v *Vigenere) RankKeyLengths(min, max int) ([]*KeyCandidate, error) {
+func RankKeyLengths(data []byte, min, max int) ([]*KeyCandidate, error) {
 	out := make([]*KeyCandidate, 0)
 	for i := min; i < max; i++ {
-		s, err := BlockDistance(v.data, i, 2)
+		s, err := BlockDistance(data, i, 2)
 		if err != nil {
 			return out, err
 		}
-		out = append(out, &KeyCandidate{Length: i, Score: s, val: make([]byte, 0, i)})
+		out = append(out, &KeyCandidate{Length: i, Score: s, val: make([]byte, i)})
 	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Score > out[j].Score
+	})
 	return out, nil
 }
 
@@ -49,30 +52,32 @@ func chunk(data []byte, n int) [][]byte {
 }
 
 func (v *Vigenere) Decrypt(data []byte) (Result, error) {
-	keys, err := v.RankKeyLengths(2, 40)
+	keys, err := RankKeyLengths(data, v.minKeyLen, v.maxKeyLen)
 	if err != nil {
 		return Result{}, err
 	}
 	keys = keys[:v.candidates]
 	for _, key := range keys {
 		key.findBest(data)
-
+		log.Printf("got val %s", key.val)
 	}
 	// score full decryption against all accumulated keys
 	ls := NewLanguageScanner()
-	scoreCh := make(chan KeyTexter, 1)
+	scoreCh := make(chan KeyTexter, len(keys))
 	for _, key := range keys {
 		d, err := XorEncrypt(data, key.val)
 		if err != nil {
 			return Result{}, err
 		}
+		log.Printf("candidate key %+v %s", key, string(d[:20]))
 		c := &vigenereCandidate{
 			key:           key.val,
 			decryptedData: d,
 		}
 		scoreCh <- c
 	}
-	best, _ := ls.MaxConfidence(context.Background(), lingua.English, scoreCh)
+	close(scoreCh)
+	best, _ := ls.SimpleEnglishMax(context.Background(), scoreCh) //ls.MaxConfidence(context.Background(), lingua.English, scoreCh)
 	//gross...
 	vc := best.(*vigenereCandidate)
 	return Result{
@@ -113,9 +118,10 @@ func (key *KeyCandidate) findBest(data []byte) {
 		best, _ := ls.SimpleEnglishMax(context.Background(), scoreCh)
 		//gross...
 		vc := best.(*blockKeyCandidate)
+		log.Printf("idx %d val %s %v", vc.blockIndex, string(vc.key), vc.key)
 		key.val[vc.blockIndex] = vc.key
 	}
-
+	log.Println("key val", string(key.val))
 	// wait for accumulator; create cipher key
 }
 

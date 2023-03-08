@@ -65,7 +65,7 @@ func SimpleEnglishScore(s string) float64 {
 	}
 	// scale is number of runes in the alphabet
 	scale := float64(hits) / float64(len(s))
-
+	//return scale
 	cs := strings.ToUpper(s)
 	// weight is sum of letter probabilities
 	weight := float64(0)
@@ -75,5 +75,6 @@ func SimpleEnglishScore(s string) float64 {
 			weight += val
 		}
 	}
+
 	return scale * weight
 }
