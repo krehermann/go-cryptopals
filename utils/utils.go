@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"crypto/aes"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -166,4 +167,17 @@ func BlockDistance(data []byte, keyLen int, blocks int) (float64, error) {
 	}
 
 	return float64(sum) / (float64(blocks) * float64(keyLen)), nil
+}
+
+func AES128ECB(data []byte, key [16]byte) ([]byte, error) {
+	blockSize := 16 // 16 bytes, 128 bits
+	ciphr, err := aes.NewCipher(key[:16])
+	if err != nil {
+		return nil, err
+	}
+	plainText := make([]byte, len(data))
+	for start, end := 0, blockSize; end < len(data); start, end = start+blockSize, end+blockSize {
+		ciphr.Decrypt(plainText[start:end], data[start:end])
+	}
+	return plainText, nil
 }

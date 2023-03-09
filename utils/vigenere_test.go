@@ -197,3 +197,16 @@ func Test_rankKeyLengths(t *testing.T) {
 		})
 	}
 }
+
+func TestSet1Challenge7(t *testing.T) {
+	b64, err := os.ReadFile("testdata/7.txt")
+	require.NoError(t, err)
+
+	enc, err := base64.StdEncoding.DecodeString(string(b64))
+	require.NoError(t, err)
+	key := []byte("YELLOW SUBMARINE")
+	fixedKey := (*[16]byte)(key)
+	txt, err := AES128ECB(enc, *fixedKey)
+	require.NoError(t, err)
+	assert.Contains(t, string(txt), "Play that funky music")
+}
