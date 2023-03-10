@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"crypto/aes"
 	"encoding/base64"
@@ -180,4 +181,19 @@ func AES128ECB(data []byte, key [16]byte) ([]byte, error) {
 		ciphr.Decrypt(plainText[start:end], data[start:end])
 	}
 	return plainText, nil
+}
+
+func DetectAES128ECB(data []byte) float64 {
+
+	var score float64
+	chunks := chunk(data, 16)
+	for i, chnk := range chunks {
+		for j := i + 1; j < len(chunks); j++ {
+			if bytes.Equal(chunks[j], chnk) {
+				score += 1
+			}
+		}
+	}
+	return score
+
 }

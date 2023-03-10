@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"bufio"
 	"context"
 	"encoding/hex"
+	"os"
 	"reflect"
 	"sort"
 	"testing"
@@ -302,4 +304,35 @@ func TestBlockDistance(t *testing.T) {
 
 	assert.Contains(t, bestLengths, expectedLen)
 
+}
+
+func TestSet1Challenge8(t *testing.T) {
+	f, err := os.Open("testdata/8.txt")
+	require.NoError(t, err)
+
+	lines := make([]string, 0)
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	err = scanner.Err()
+	assert.NoError(t, err)
+
+	var best float64
+	bestIdx := 0
+	for i, line := range lines {
+		enc, err := hex.DecodeString(line)
+		require.NoError(t, err)
+		score := DetectAES128ECB(enc)
+		t.Logf("score %f i %d", score, i)
+		if score > best {
+
+			best = score
+			bestIdx = i
+		}
+	}
+
+	t.Logf("best %f idx %d val %s", best, bestIdx, lines[bestIdx])
+	assert.Contains(t, lines[bestIdx], "08649af70dc06f4f")
 }
