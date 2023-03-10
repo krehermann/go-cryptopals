@@ -184,46 +184,16 @@ func AES128ECB(data []byte, key [16]byte) ([]byte, error) {
 }
 
 func DetectAES128ECB(data []byte) float64 {
-	lens := []int{2, 3, 5, 7, 8}
-	chunks := chunk(data, 16)
 
 	var score float64
-	// for each length, take a chunk, find all continugous bytes of give length
-	// scan all chunks for overlap an
-	for _, l := range lens {
-		for i := range chunks {
-			ngrams := getAllNgrams(chunks[i], l)
-			for _, ngram := range ngrams {
-				for j := i; j < len(chunks); j++ {
-					score += scoreOverlap(chunks[j], ngram)
-				}
+	chunks := chunk(data, 16)
+	for i, chnk := range chunks {
+		for j := i + 1; j < len(chunks); j++ {
+			if bytes.Equal(chunks[j], chnk) {
+				score += 1
 			}
 		}
 	}
 	return score
-}
-
-func getAllNgrams(chunk []byte, n int) [][]byte {
-	out := make([][]byte, 0)
-	for i := 0; i+n < len(chunk); i++ {
-		ngram := chunk[i : n+i]
-		out = append(out, ngram)
-	}
-	return out
-}
-
-func scoreOverlap(chunk []byte, pattern []byte) float64 {
-	n := len(pattern)
-	matches := 0
-	for i := 0; i+n < len(chunk); i++ {
-		ngram := chunk[i : n+i]
-		if bytes.Compare(pattern, ngram) == 0 {
-			matches += 1
-		}
-	}
-	// normalize to the largest number of non-overlapping mathces possible
-	// for given lenght of pattern and chunck. eg len 2 pattern and 16 chunk => max of 8
-	max := float64(len(chunk)) / float64(len(pattern))
-	return float64(matches) / max
 
 }
