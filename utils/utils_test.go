@@ -336,3 +336,31 @@ func TestSet1Challenge8(t *testing.T) {
 	t.Logf("best %f idx %d val %s", best, bestIdx, lines[bestIdx])
 	assert.Contains(t, lines[bestIdx], "08649af70dc06f4f")
 }
+
+func TestPKCS7(t *testing.T) {
+	type args struct {
+		data  []byte
+		padTo int
+	}
+	tests := []struct {
+		name string
+		args args
+		want []byte
+	}{
+		{
+			name: "set2 challenge1",
+			args: args{
+				data:  []byte("YELLOW SUBMARINE"),
+				padTo: 20,
+			},
+			want: []byte("YELLOW SUBMARINE\x04\x04\x04\x04"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := PKCS7(tt.args.data, tt.args.padTo); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("PKCS7() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

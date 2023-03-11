@@ -197,3 +197,18 @@ func DetectAES128ECB(data []byte) float64 {
 	return score
 
 }
+
+func PKCS7(data []byte, padTo int) []byte {
+	if len(data) >= padTo {
+		return data[:padTo]
+	}
+	l := len(data)
+	d := padTo - l
+	out := make([]byte, 0, padTo)
+	out = append(out, data...)
+
+	for i := 0; i < d; i++ {
+		out = append(out, byte(d))
+	}
+	return out
+}
