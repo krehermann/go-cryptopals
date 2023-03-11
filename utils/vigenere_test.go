@@ -206,7 +206,31 @@ func TestSet1Challenge7(t *testing.T) {
 	require.NoError(t, err)
 	key := []byte("YELLOW SUBMARINE")
 	fixedKey := (*[16]byte)(key)
-	txt, err := AES128ECB(enc, *fixedKey)
+	txt, err := AES128ECB(enc, *fixedKey, AESDecrypt)
 	require.NoError(t, err)
 	assert.Contains(t, string(txt), "Play that funky music")
+}
+
+func TestAES128RoundTrip(t *testing.T) {
+	// must be mulitple of 16
+	txt := `Go son, go down to the water
+	And see the women weeping there
+	Then go up into the mountains
+	The men, they are weeping too
+	Father, why are all the women weeping?
+	They are weeping for their men
+	Then why are all the men there weeping?
+	They are weeping back at them`
+
+	m := len(txt) / 16
+	txt = txt[:m*16]
+	assert.Equal(t, 0, len(txt)%16)
+	key := []byte("the weeping song")
+	fixedKey := (*[16]byte)(key)
+	enc, err := AES128ECB([]byte(txt), *fixedKey, AESEncrypt)
+	require.NoError(t, err)
+	got, err := AES128ECB(enc, *fixedKey, AESDecrypt)
+	require.NoError(t, err)
+	assert.Equal(t, txt, string(got))
+
 }

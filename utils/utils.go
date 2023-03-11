@@ -170,17 +170,28 @@ func BlockDistance(data []byte, keyLen int, blocks int) (float64, error) {
 	return float64(sum) / (float64(blocks) * float64(keyLen)), nil
 }
 
-func AES128ECB(data []byte, key [16]byte) ([]byte, error) {
+type AESMode int
+
+const (
+	AESDecrypt AESMode = iota
+	AESEncrypt
+)
+
+func AES128ECB(data []byte, key [16]byte, mode AESMode) ([]byte, error) {
 	blockSize := 16 // 16 bytes, 128 bits
-	ciphr, err := aes.NewCipher(key[:16])
+	ciphr, err := aes.NewCipher(key[:blockSize])
 	if err != nil {
 		return nil, err
 	}
-	plainText := make([]byte, len(data))
-	for start, end := 0, blockSize; end < len(data); start, end = start+blockSize, end+blockSize {
-		ciphr.Decrypt(plainText[start:end], data[start:end])
+	result := make([]byte, len(data))
+	cipherFn := ciphr.Decrypt
+	if mode == AESEncrypt {
+		cipherFn = ciphr.Encrypt
 	}
-	return plainText, nil
+	for start, end := 0, blockSize; end <= len(data); start, end = start+blockSize, end+blockSize {
+		cipherFn(result[start:end], data[start:end])
+	}
+	return result, nil
 }
 
 func DetectAES128ECB(data []byte) float64 {
