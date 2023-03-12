@@ -364,3 +364,40 @@ func TestPKCS7(t *testing.T) {
 		})
 	}
 }
+
+func TestAES(t *testing.T) {
+
+	k := "this is a key"
+	pk := PKCS7([]byte(k), 16)
+	d := `Amazing grace! how sweet the sound,
+	That saved a wretch; like me!
+    I once was lost, but now am found,
+	Was blind, but now I see.`
+
+	b := []byte(d)
+	src := b[:128]
+	t.Run("ecb", func(t *testing.T) {
+		a, err := NewAES(pk, AESECB)
+		require.NoError(t, err)
+		enc, err := a.Encrypt(src)
+		require.NoError(t, err)
+
+		got, err := a.Decrypt(enc)
+		require.NoError(t, err)
+		assert.Equal(t, string(src), string(got))
+
+	})
+
+	t.Run("cbc", func(t *testing.T) {
+		a, err := NewAES(pk, AESCBC)
+		require.NoError(t, err)
+		enc, err := a.Encrypt(src)
+		require.NoError(t, err)
+
+		got, err := a.Decrypt(enc)
+		require.NoError(t, err)
+		assert.Equal(t, string(src), string(got))
+
+	})
+
+}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/aes"
+	"crypto/cipher"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -170,32 +171,99 @@ func BlockDistance(data []byte, keyLen int, blocks int) (float64, error) {
 	return float64(sum) / (float64(blocks) * float64(keyLen)), nil
 }
 
-type AESMode int
+type AES struct {
+	ciphr cipher.Block
+	mode  AESMode
+	// optional
+	cbcIV []byte
+}
 
-const (
-	AESDecrypt AESMode = iota
-	AESEncrypt
-)
+type AESOpt func(*AES)
 
-func AES128ECB(data []byte, key [16]byte, mode AESMode) ([]byte, error) {
-	blockSize := 16 // 16 bytes, 128 bits
-	ciphr, err := aes.NewCipher(key[:blockSize])
+func WithIV(iv []byte) AESOpt {
+	return func(a *AES) {
+		a.cbcIV = iv
+	}
+}
+
+func NewAES(key []byte, mode AESMode, opts ...AESOpt) (*AES, error) {
+	c, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]byte, len(data))
-	cipherFn := ciphr.Decrypt
-	if mode == AESEncrypt {
-		cipherFn = ciphr.Encrypt
+
+	a := &AES{
+		ciphr: c,
+		mode:  mode,
+		cbcIV: make([]byte, len(key)),
 	}
-	for start, end := 0, blockSize; end <= len(data); start, end = start+blockSize, end+blockSize {
-		cipherFn(result[start:end], data[start:end])
+
+	for _, opt := range opts {
+		opt(a)
 	}
+	return a, nil
+}
+
+func (a *AES) Encrypt(src []byte) ([]byte, error) {
+	result := make([]byte, len(src))
+	blockSize := a.ciphr.BlockSize()
+
+	switch a.mode {
+	case AESECB:
+		for start, end := 0, blockSize; end <= len(src); start, end = start+blockSize, end+blockSize {
+			a.ciphr.Encrypt(result[start:end], src[start:end])
+		}
+	case AESCBC:
+		prevBlock := a.cbcIV
+		for start, end := 0, blockSize; end <= len(src); start, end = start+blockSize, end+blockSize {
+			transformed, err := FixedXor(prevBlock, src[start:end])
+			if err != nil {
+				return nil, err
+			}
+			a.ciphr.Encrypt(result[start:end], transformed)
+			prevBlock = result[start:end]
+		}
+	}
+	return result, nil
+
+}
+
+func (a *AES) Decrypt(src []byte) ([]byte, error) {
+	result := make([]byte, len(src))
+	blockSize := a.ciphr.BlockSize()
+
+	switch a.mode {
+	case AESECB:
+		for start, end := 0, blockSize; end <= len(src); start, end = start+blockSize, end+blockSize {
+			a.ciphr.Decrypt(result[start:end], src[start:end])
+		}
+	case AESCBC:
+		prevBlock := a.cbcIV
+		tmp := make([]byte, a.ciphr.BlockSize())
+
+		for start, end := 0, blockSize; end <= len(src); start, end = start+blockSize, end+blockSize {
+			a.ciphr.Decrypt(tmp, src[start:end])
+
+			transformed, err := FixedXor(prevBlock, tmp)
+			if err != nil {
+				return nil, err
+			}
+			copy(result[start:end], transformed)
+			prevBlock = src[start:end]
+		}
+	}
+
 	return result, nil
 }
 
-func DetectAES128ECB(data []byte) float64 {
+type AESMode int
 
+const (
+	AESECB AESMode = iota
+	AESCBC
+)
+
+func DetectAES128ECB(data []byte) float64 {
 	var score float64
 	chunks := chunk(data, 16)
 	for i, chnk := range chunks {
@@ -206,7 +274,6 @@ func DetectAES128ECB(data []byte) float64 {
 		}
 	}
 	return score
-
 }
 
 func PKCS7(data []byte, padTo int) []byte {
