@@ -3,6 +3,7 @@ package utils
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"os"
 	"reflect"
@@ -400,4 +401,16 @@ func TestAES(t *testing.T) {
 
 	})
 
+	t.Run("set 2 challenge 10", func(t *testing.T) {
+		b64, err := os.ReadFile("testdata/10.txt")
+		require.NoError(t, err)
+		enc, err := base64.RawStdEncoding.DecodeString(string(b64))
+		require.NoError(t, err)
+		key := "YELLOW SUBMARINE"
+		a, err := NewAES([]byte(key), AESCBC)
+		require.NoError(t, err)
+		txt, err := a.Decrypt(enc)
+		assert.NoError(t, err)
+		assert.Contains(t, string(txt), "Play that funky music")
+	})
 }
