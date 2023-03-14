@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"math"
 	"math/big"
 	"math/bits"
@@ -260,12 +261,41 @@ func (a *AES) Decrypt(src []byte) ([]byte, error) {
 
 type AESMode int
 
-func aesOracle(txt []byte) ([]byte, error) {
+type AESOracle struct {
+	mode AESMode
+}
+
+func (o *AESOracle) prepareForOracle(txt []byte) ([]byte, error) {
+	d := make([]byte, 0)
+
+	prefix, err := generateBytes(5, 10)
+	if err != nil {
+		return nil, err
+	}
+	d = append(d, prefix...)
+	d = append(d, txt...)
+
+	suffix, err := generateBytes(5, 10)
+	if err != nil {
+		return nil, err
+	}
+
+	d = append(d, suffix...)
+	return d, nil
+}
+
+func (o *AESOracle) Encrypt(txt []byte) ([]byte, error) {
+
+	d, err := o.prepareForOracle(txt)
+	if err != nil {
+		return nil, err
+	}
 	v, err := rand.Int(rand.Reader, big.NewInt(2))
 	if err != nil {
 		return nil, err
 	}
 	m := AESMode(v.Int64())
+	log.Printf("mode %d", m)
 
 	k := make([]byte, 16)
 	n, err := rand.Read(k)
@@ -279,42 +309,29 @@ func aesOracle(txt []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	o.mode = m
+	return a.Encrypt(d)
 
-	nPrefix, err := rand.Int(rand.Reader, big.NewInt(6))
+}
+
+func generateBytes(min, max int64) ([]byte, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(min+1))
 	if err != nil {
 		return nil, fmt.Errorf("generateing n prefix: %w", err)
 	}
-	nSuffix, err := rand.Int(rand.Reader, big.NewInt(6))
-	if err != nil {
-		return nil, fmt.Errorf("generateing n suffix: %w", err)
-	}
 
-	wantN := nPrefix.Int64() + 5 // [5,10]
-	preBuf := make([]byte, wantN)
-	n, err = rand.Read(preBuf)
+	wantN := n.Int64() + (max - min)
+	buf := make([]byte, wantN)
+
+	got, err := rand.Read(buf)
 	if err != nil {
 		return nil, err
 	}
-	if n != int(wantN) {
-		return nil, fmt.Errorf("error generating random byte prefix, want %d got %d", wantN, n)
+	if got != int(wantN) {
+		return nil, fmt.Errorf("error generating random byte prefix, want %d got %d", wantN, got)
 	}
 
-	wantN = nSuffix.Int64() + 5 // [5,10]
-	postBuf := make([]byte, wantN)
-	n, err = rand.Read(postBuf)
-	if err != nil {
-		return nil, err
-	}
-	if n != int(wantN) {
-		return nil, fmt.Errorf("error generating random byte prefix, want %d got %d", wantN, n)
-	}
-
-	d := make([]byte, 0)
-	d = append(d, preBuf...)
-	d = append(d, txt...)
-	d = append(d, postBuf...)
-
-	return a.Encrypt(d)
+	return buf, nil
 
 }
 
