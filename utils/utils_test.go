@@ -414,3 +414,22 @@ func TestAES(t *testing.T) {
 		assert.Contains(t, string(txt), "Play that funky music")
 	})
 }
+
+// set 2 challenge 11
+func TestAESOracle_Encrypt(t *testing.T) {
+
+	r := 'X'
+	var txt string
+	for i := 0; i < 4*16; i++ {
+		txt = txt + string(r)
+	}
+
+	o := &AESOracle{}
+	for i := 0; i < 16; i++ {
+		got, err := o.Encrypt([]byte(txt))
+		require.NoError(t, err)
+		if o.mode == AESECB {
+			assert.Equal(t, got[16:32], got[32:48])
+		}
+	}
+}

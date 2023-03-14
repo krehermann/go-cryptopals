@@ -5,10 +5,13 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"math"
+	"math/big"
 	"math/bits"
 
 	"github.com/pemistahl/lingua-go"
@@ -257,6 +260,80 @@ func (a *AES) Decrypt(src []byte) ([]byte, error) {
 }
 
 type AESMode int
+
+type AESOracle struct {
+	mode AESMode
+}
+
+func (o *AESOracle) prepareForOracle(txt []byte) ([]byte, error) {
+	d := make([]byte, 0)
+
+	prefix, err := generateBytes(5, 10)
+	if err != nil {
+		return nil, err
+	}
+	d = append(d, prefix...)
+	d = append(d, txt...)
+
+	suffix, err := generateBytes(5, 10)
+	if err != nil {
+		return nil, err
+	}
+
+	d = append(d, suffix...)
+	return d, nil
+}
+
+func (o *AESOracle) Encrypt(txt []byte) ([]byte, error) {
+
+	d, err := o.prepareForOracle(txt)
+	if err != nil {
+		return nil, err
+	}
+	v, err := rand.Int(rand.Reader, big.NewInt(2))
+	if err != nil {
+		return nil, err
+	}
+	m := AESMode(v.Int64())
+	log.Printf("mode %d", m)
+
+	k := make([]byte, 16)
+	n, err := rand.Read(k)
+	if err != nil {
+		return nil, err
+	}
+	if n != 16 {
+		return nil, fmt.Errorf("error generating 16 byte key, got %d", n)
+	}
+	a, err := NewAES(k, m)
+	if err != nil {
+		return nil, err
+	}
+	o.mode = m
+	return a.Encrypt(d)
+
+}
+
+func generateBytes(min, max int64) ([]byte, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(min+1))
+	if err != nil {
+		return nil, fmt.Errorf("generateing n prefix: %w", err)
+	}
+
+	wantN := n.Int64() + (max - min)
+	buf := make([]byte, wantN)
+
+	got, err := rand.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+	if got != int(wantN) {
+		return nil, fmt.Errorf("error generating random byte prefix, want %d got %d", wantN, got)
+	}
+
+	return buf, nil
+
+}
 
 const (
 	AESECB AESMode = iota
