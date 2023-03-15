@@ -314,6 +314,45 @@ func (o *AESOracle) Encrypt(txt []byte) ([]byte, error) {
 
 }
 
+type ConsistentAESECB struct {
+	*AES
+}
+
+func NewConsistentAESECB() (*ConsistentAESECB, error) {
+	r, err := rand.Int(rand.Reader, big.NewInt(3))
+	if err != nil {
+		return nil, err
+	}
+	var blockSize int
+	switch r.Int64() {
+	case 0:
+		blockSize = 16
+	case 1:
+		blockSize = 24
+	case 2:
+		blockSize = 32
+	default:
+		return nil, fmt.Errorf("error generating block size. unexpected enum value %d", r.Int64())
+	}
+
+	key := make([]byte, blockSize)
+	n, err := rand.Read(key)
+	if err != nil {
+		return nil, fmt.Errorf("error generating key %w", err)
+	}
+	if n != blockSize {
+		return nil, fmt.Errorf("bad key len generated. want %d got %d", blockSize, n)
+	}
+
+	a, err := NewAES(key, AESECB)
+	if err != nil {
+		return nil, err
+	}
+	return &ConsistentAESECB{
+		AES: a,
+	}, nil
+}
+
 func generateBytes(min, max int64) ([]byte, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(min+1))
 	if err != nil {

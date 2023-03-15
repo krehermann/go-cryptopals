@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -432,4 +433,63 @@ func TestAESOracle_Encrypt(t *testing.T) {
 			assert.Equal(t, got[16:32], got[32:48])
 		}
 	}
+}
+
+func TestSet2Challenge12(t *testing.T) {
+	b4cyphrTxt := `Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkg
+aGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBq
+dXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUg
+YnkK`
+
+	cyphr, err := base64.RawStdEncoding.DecodeString(b4cyphrTxt)
+	require.NoError(t, err)
+
+	cAes, err := NewConsistentAESECB()
+	require.NoError(t, err)
+
+	// determine the block size
+	// there are 3 possibilities 16, 24, 32
+
+	prefix := make([]byte, 32)
+	for j := 0; j < len(prefix); j++ {
+		prefix[j] = 'A'
+	}
+
+	var blockSize int
+	for i := 0; i < 3; i++ {
+		var l int
+		switch i {
+		case 0:
+			l = 16
+		case 1:
+			l = 24
+		case 2:
+			l = 32
+		default:
+			assert.FailNow(t, "block size search out of range")
+		}
+
+		d := join(prefix[:16], cyphr)
+		runner := join(prefix[:17], cyphr)
+
+		enc, err := cAes.Encrypt(d)
+		require.NoError(t, err)
+
+		encRunner, err := cAes.Encrypt(runner)
+		require.NoError(t, err)
+
+		if bytes.Equal(enc[:l], encRunner[:l]) {
+			blockSize = l
+			break
+		}
+	}
+
+	assert.Equal(t, cAes.ciphr.BlockSize(), blockSize)
+}
+
+func join(a, b []byte) []byte {
+	out := make([]byte, 0, len(a)+len(b))
+	out = append(out, a...)
+	out = append(out, b...)
+	return out
 }
