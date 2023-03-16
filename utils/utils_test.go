@@ -485,6 +485,17 @@ YnkK`
 	}
 
 	assert.Equal(t, cAes.ciphr.BlockSize(), blockSize)
+
+	// confirm that the encryption is ecb
+
+	ecbPrefix := make([]byte, 2*blockSize+1)
+	for i := range ecbPrefix {
+		ecbPrefix[i] = 'A'
+	}
+	d := join(ecbPrefix, cyphr)
+	enc, err := cAes.Encrypt(d)
+	require.NoError(t, err)
+	assert.True(t, bytes.Equal(enc[:blockSize], enc[blockSize:2*blockSize]))
 }
 
 func join(a, b []byte) []byte {
