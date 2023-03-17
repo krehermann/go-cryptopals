@@ -487,7 +487,6 @@ YnkK`
 	assert.Equal(t, cAes.ciphr.BlockSize(), blockSize)
 
 	// confirm that the encryption is ecb
-
 	ecbPrefix := make([]byte, 2*blockSize+1)
 	for i := range ecbPrefix {
 		ecbPrefix[i] = 'A'
@@ -496,6 +495,50 @@ YnkK`
 	enc, err := cAes.Encrypt(d)
 	require.NoError(t, err)
 	assert.True(t, bytes.Equal(enc[:blockSize], enc[blockSize:2*blockSize]))
+
+	// decode a byte a time
+	// make a plaintext of length blocksize
+	// fix the first blocksize -1
+	// for every possible value of the Nth byte, call the oracle with (fixed key + nth byte) and save the first block in a map
+	// call the oracle with fixed key, len N-1. compare the returned first block to the map
+	// repeat using fix-key[:n-2] + answer
+	// once the first block is decoded, repeat the process but update the fixed key to the decrypted value of the first block
+	// and attack the second block
+	result := make([]byte, 0)
+	pos := 0
+	block := pos / blockSize
+	//attackLen := blockSize - ((pos % blockSize) + 1)
+	attackLen := blockSize - 1
+	attackBuf := make([]byte, 0, blockSize)
+	for i := 0; i < blockSize; i++ {
+		attackBuf = append(attackBuf, 'X')
+	}
+
+	solutionMap := make(map[string]byte)
+	for i := 0; i < 128; i++ {
+		val := byte(i)
+		attackBuf[blockSize-1] = val
+		res, err := cAes.Encrypt(attackBuf)
+		require.NoError(t, err)
+		solutionMap[string(res)] = val
+	}
+
+	attackVec := join(attackBuf[:blockSize-1], cyphr)
+	attackResult, err := cAes.Encrypt(attackVec)
+	require.NoError(t, err)
+
+	decryptedByte, exists := solutionMap[string(attackResult[block*blockSize:(block+1)*blockSize])]
+	require.True(t, exists)
+	result = append(result, decryptedByte)
+
+	attackLen -= 1
+	// pop first byte, ignore last
+	attackBuf = attackBuf[1 : blockSize-1]
+	attackBuf = append(attackBuf, 'X', decryptedByte)
+	require.Len(t, attackBuf, blockSize)
+	//	require.Equal(t, blockSize, cap(attackBuf))
+	t.Logf("decrypted byte %s", string(decryptedByte))
+
 }
 
 func join(a, b []byte) []byte {
