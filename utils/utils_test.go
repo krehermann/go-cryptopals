@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
+	"log"
 	"os"
 	"reflect"
 	"sort"
@@ -504,41 +506,111 @@ YnkK`
 	// repeat using fix-key[:n-2] + answer
 	// once the first block is decoded, repeat the process but update the fixed key to the decrypted value of the first block
 	// and attack the second block
+
 	result := make([]byte, 0)
-	pos := 0
-	block := pos / blockSize
-	//attackLen := blockSize - ((pos % blockSize) + 1)
-	attackLen := blockSize - 1
-	attackBuf := make([]byte, 0, blockSize)
-	for i := 0; i < blockSize; i++ {
-		attackBuf = append(attackBuf, 'X')
-	}
+	/*
+		pos := 0
+		block := pos / blockSize
+		//attackLen := blockSize - ((pos % blockSize) + 1)
+		attackLen := blockSize - 1
+		attackBuf := make([]byte, 0, blockSize)
+		for i := 0; i < blockSize; i++ {
+			attackBuf = append(attackBuf, 'X')
+		}
 
-	solutionMap := make(map[string]byte)
-	for i := 0; i < 128; i++ {
-		val := byte(i)
-		attackBuf[blockSize-1] = val
-		res, err := cAes.Encrypt(attackBuf)
+		solutionMap := make(map[string]byte)
+		for i := 0; i < 128; i++ {
+			val := byte(i)
+			attackBuf[blockSize-1] = val
+			res, err := cAes.Encrypt(attackBuf)
+			require.NoError(t, err)
+			solutionMap[string(res)] = val
+		}
+
+		attackVec := join(attackBuf[:blockSize-1], cyphr)
+		attackResult, err := cAes.Encrypt(attackVec)
 		require.NoError(t, err)
-		solutionMap[string(res)] = val
+
+		decryptedByte, exists := solutionMap[string(attackResult[block*blockSize:(block+1)*blockSize])]
+		require.True(t, exists)
+		result = append(result, decryptedByte)
+
+		attackLen -= 1
+		// pop first byte, ignore last
+		attackBuf = attackBuf[1 : blockSize-1]
+		attackBuf = append(attackBuf, 'X', decryptedByte)
+		require.Len(t, attackBuf, blockSize)
+		//	require.Equal(t, blockSize, cap(attackBuf))
+		t.Logf("decrypted byte %s", string(decryptedByte))
+	*/
+	for i := 0; i < len(cyphr); i++ {
+		t.Logf(" iter %d, result '%s', %d", i, string(result), len(result))
+		ab, pad := generateAttackBuf(result, blockSize)
+		t.Logf("attack pad '%s', %d, '%s'", string(ab[:blockSize-1]), pad, ab[:pad])
+		require.Len(t, ab, blockSize)
+		solutions, err := generateAttackMap(cAes, ab[:blockSize-1])
+		require.NoError(t, err)
+		got, err := cAes.Encrypt(join(ab[:pad], cyphr))
+		require.NoError(t, err)
+		result, err = updateResult(result, got, blockSize, solutions)
+		require.NoError(t, err, "iter %d", i)
+
+		t.Logf("result '%s'", (result))
 	}
+	t.Fail()
 
-	attackVec := join(attackBuf[:blockSize-1], cyphr)
-	attackResult, err := cAes.Encrypt(attackVec)
-	require.NoError(t, err)
+}
 
-	decryptedByte, exists := solutionMap[string(attackResult[block*blockSize:(block+1)*blockSize])]
-	require.True(t, exists)
-	result = append(result, decryptedByte)
+func generateAttackBuf(currentResult []byte, blockSize int) ([]byte, int) {
+	// we always pre-pad such that the attack buffer is one byte smaller than a block
+	pad := (blockSize - 1) - (len(currentResult) % blockSize)
 
-	attackLen -= 1
-	// pop first byte, ignore last
-	attackBuf = attackBuf[1 : blockSize-1]
-	attackBuf = append(attackBuf, 'X', decryptedByte)
-	require.Len(t, attackBuf, blockSize)
-	//	require.Equal(t, blockSize, cap(attackBuf))
-	t.Logf("decrypted byte %s", string(decryptedByte))
+	attackBuf := make([]byte, blockSize)
+	for i := 0; i < pad; i++ {
+		attackBuf[i] = 'X'
+	}
+	for i := pad; i < blockSize-1; i++ {
+		attackBuf[i] = currentResult[i-pad]
+	}
+	//last byte is unset
+	return attackBuf, pad
+}
 
+func generateAttackMap(cAes *ConsistentAESECB, attackBuf []byte) (map[string]byte, error) {
+
+	temp := make([]byte, len(attackBuf)+1)
+	copy(temp, attackBuf)
+
+	attackPos := len(temp) - 1
+	solutionMap := make(map[string]byte)
+	for i := 0; i <= 128; i++ {
+		val := byte(i)
+		temp[attackPos] = val
+		//	log.Printf("making solutino fir %s", attackBuf)
+		res, err := cAes.Encrypt(temp)
+		if err != nil {
+			return nil, err
+		}
+		solutionMap[hex.EncodeToString(res)] = val
+	}
+	return solutionMap, nil
+}
+
+func updateResult(currentResult, cyphr []byte, blockSize int, solutionMap map[string]byte) ([]byte, error) {
+	block := len(currentResult) / blockSize
+	attackResult := cyphr[block*blockSize : (block+1)*blockSize]
+
+	s := hex.EncodeToString(attackResult)
+	log.Printf("attack result %s, block %d", s, block)
+	decodeByte, exists := solutionMap[s]
+	if !exists {
+		return nil, fmt.Errorf("attack result not in solution map")
+	}
+	log.Printf("got byte '%s'", hex.EncodeToString([]byte{decodeByte}))
+	x := make([]byte, len(currentResult))
+	copy(x, currentResult)
+	x = append(x, decodeByte)
+	return x, nil
 }
 
 func join(a, b []byte) []byte {
