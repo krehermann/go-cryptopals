@@ -544,13 +544,27 @@ YnkK`
 		t.Logf("decrypted byte %s", string(decryptedByte))
 	*/
 	for i := 0; i < len(cyphr); i++ {
-		t.Logf(" iter %d, result '%s', %d", i, string(result), len(result))
-		ab, pad := generateAttackBuf(result, blockSize)
-		t.Logf("attack pad '%s', %d, '%s'", string(ab[:blockSize-1]), pad, ab[:pad])
-		require.Len(t, ab, blockSize)
-		solutions, err := generateAttackMap(cAes, ab[:blockSize-1])
+		//sblock := i / blockSize
+
+		//start := i
+		padLen := (blockSize - 1) - (i % blockSize)
+		//end := i + padLen
+
+		t.Logf(" iter %d, result '%s', %d, padLen %d", i, string(result), len(result), padLen)
+		ab := generateAttackBuf(result, blockSize)
+		attck := ab[len(ab)-(blockSize-1):]
+		require.Len(t, attck, blockSize-1)
+
+		pad := ab[:padLen]
+		require.Len(t, pad, padLen)
+		t.Logf("attack pad '%s', '%s'", string(ab), string(pad))
+
+		t.Logf("attck %s", attck)
+		solutions, err := generateAttackMap(cAes, attck)
 		require.NoError(t, err)
-		got, err := cAes.Encrypt(join(ab[:pad], cyphr))
+		x := join(pad, cyphr)
+		t.Logf("x %s", x[:blockSize])
+		got, err := cAes.Encrypt(x)
 		require.NoError(t, err)
 		result, err = updateResult(result, got, blockSize, solutions)
 		require.NoError(t, err, "iter %d", i)
@@ -561,19 +575,36 @@ YnkK`
 
 }
 
-func generateAttackBuf(currentResult []byte, blockSize int) ([]byte, int) {
+func generateAttackBuf(currentResult []byte, blockSize int) []byte {
+	//blockNum := len(currentResult) / blockSize
+
 	// we always pre-pad such that the attack buffer is one byte smaller than a block
-	pad := (blockSize - 1) - (len(currentResult) % blockSize)
+
+	//pad := (blockSize - 1) - (len(currentResult) % blockSize)
 
 	attackBuf := make([]byte, blockSize)
-	for i := 0; i < pad; i++ {
+
+	for i := 0; i < blockSize; i++ {
 		attackBuf[i] = 'X'
 	}
-	for i := pad; i < blockSize-1; i++ {
-		attackBuf[i] = currentResult[i-pad]
-	}
-	//last byte is unset
-	return attackBuf, pad
+	attackBuf = append(attackBuf, currentResult...)
+	/*
+	   	for i := 0; i < pad; i++ {
+	   		if blockNum == 0 {
+	   			attackBuf[i] = 'X'
+	   		} else {
+	   			attackBuf[i] = currentResult[(blockNum-1)*blockSize+i]
+	   		}
+	   	}
+
+	   	for i := pad; i < blockSize-1; i++ {
+	   		attackBuf[i] = currentResult[i-pad+blockNum*blockSize]
+	   	}
+
+	   //last byte is unset
+	   return attackBuf, pad
+	*/
+	return attackBuf
 }
 
 func generateAttackMap(cAes *ConsistentAESECB, attackBuf []byte) (map[string]byte, error) {
@@ -586,17 +617,19 @@ func generateAttackMap(cAes *ConsistentAESECB, attackBuf []byte) (map[string]byt
 	for i := 0; i <= 128; i++ {
 		val := byte(i)
 		temp[attackPos] = val
-		//	log.Printf("making solutino fir %s", attackBuf)
+		//	log.Printf("making solutino fir %s", temp)
 		res, err := cAes.Encrypt(temp)
 		if err != nil {
 			return nil, err
 		}
+		log.Printf("val %s key %s temp %s", string([]byte{val}), hex.EncodeToString(res), temp)
 		solutionMap[hex.EncodeToString(res)] = val
 	}
 	return solutionMap, nil
 }
 
 func updateResult(currentResult, cyphr []byte, blockSize int, solutionMap map[string]byte) ([]byte, error) {
+	log.Printf("updating result %s", currentResult)
 	block := len(currentResult) / blockSize
 	attackResult := cyphr[block*blockSize : (block+1)*blockSize]
 
@@ -604,7 +637,7 @@ func updateResult(currentResult, cyphr []byte, blockSize int, solutionMap map[st
 	log.Printf("attack result %s, block %d", s, block)
 	decodeByte, exists := solutionMap[s]
 	if !exists {
-		return nil, fmt.Errorf("attack result not in solution map")
+		return nil, fmt.Errorf("attack result %s not in solution map", s)
 	}
 	log.Printf("got byte '%s'", hex.EncodeToString([]byte{decodeByte}))
 	x := make([]byte, len(currentResult))
