@@ -513,6 +513,7 @@ YnkK`
 	prependedResult := make([]byte, 0)
 	for i := 0; i < len(cyphr); i++ {
 
+		block := i / blockSize
 		//prepend a static block to result
 		prependedResult = append(prependedResult, prefix[:blockSize]...)
 		prependedResult = append(prependedResult, result...)
@@ -520,7 +521,8 @@ YnkK`
 		// the attack prefix is the last blockSize-1 bytes of the prepended result
 		attck := prependedResult[len(prependedResult)-(blockSize-1):]
 		require.Len(t, attck, blockSize-1)
-		solutions, err := generateAttackMap(oracle, attck)
+
+		solutions, err := generateAttackMap(oracle, attck, block, blockSize)
 		require.NoError(t, err)
 
 		// the bytes to send to the oracle input
@@ -538,6 +540,7 @@ YnkK`
 		attackInput := prependedResult[:padLen]
 		require.Len(t, attackInput, padLen)
 		//hiddenInput := join(attackInput, cyphr)
+
 		got, err := oracle.Encrypt(attackInput)
 		require.NoError(t, err)
 		result, err = updateResult(result, got, blockSize, solutions)
@@ -549,7 +552,7 @@ YnkK`
 	require.Equal(t, want, string(result))
 }
 
-func generateAttackMap(oracle *AESECBOracle, attackBuf []byte) (map[string]byte, error) {
+func generateAttackMap(oracle *AESECBOracle, attackBuf []byte, block, blockSize int) (map[string]byte, error) {
 
 	temp := make([]byte, len(attackBuf)+1)
 	copy(temp, attackBuf)
@@ -559,10 +562,13 @@ func generateAttackMap(oracle *AESECBOracle, attackBuf []byte) (map[string]byte,
 	for i := 0; i <= 128; i++ {
 		val := byte(i)
 		temp[attackPos] = val
-		res, err := oracle.ConsistentAESECB.Encrypt(temp)
+		//		res, err := oracle.ConsistentAESECB.Encrypt(temp)
+		res, err := oracle.Encrypt(temp)
+
 		if err != nil {
 			return nil, err
 		}
+		res = res[:blockSize]
 		solutionMap[hex.EncodeToString(res)] = val
 	}
 	return solutionMap, nil
