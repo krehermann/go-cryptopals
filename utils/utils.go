@@ -406,3 +406,50 @@ func PKCS7(data []byte, padTo int) []byte {
 	}
 	return out
 }
+
+type AESECBOracle struct {
+	usePrefix bool
+	prefix    []byte
+	hidden    []byte
+	*ConsistentAESECB
+}
+
+func NewAESECBOracle(hidden []byte, usePrefix bool) (*AESECBOracle, error) {
+	randPrefix := make([]byte, 0)
+	if usePrefix {
+		r, err := rand.Int(rand.Reader, big.NewInt(128))
+		if err != nil {
+			return nil, err
+		}
+		randPrefix = make([]byte, r.Int64())
+		n, err := rand.Read(randPrefix)
+		if err != nil {
+			return nil, err
+		}
+		if n != int(r.Int64()) {
+			return nil, fmt.Errorf("random prefix not expected len( %d != %d)", n, r.Int64())
+		}
+	}
+
+	cAes, err := NewConsistentAESECB()
+	if err != nil {
+		return nil, err
+	}
+	return &AESECBOracle{
+		usePrefix:        usePrefix,
+		prefix:           randPrefix,
+		hidden:           hidden,
+		ConsistentAESECB: cAes,
+	}, nil
+}
+
+func (o *AESECBOracle) Encrypt(txt []byte) ([]byte, error) {
+	d := make([]byte, 0)
+	if o.usePrefix {
+		d = o.prefix
+	}
+	//d = join(txt, o.hidden)
+	d = append(d, txt...)
+	d = append(d, o.hidden...)
+	return o.ConsistentAESECB.Encrypt(d)
+}
