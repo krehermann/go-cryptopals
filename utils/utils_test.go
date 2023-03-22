@@ -446,7 +446,6 @@ YnkK`
 	require.NoError(t, err)
 
 	oracle, err := NewAESECBOracle(cyphr, false)
-	//cAes, err := NewConsistentAESECB()
 	require.NoError(t, err)
 
 	// determine the block size
@@ -562,7 +561,6 @@ func generateAttackMap(oracle *AESECBOracle, attackBuf []byte, block, blockSize 
 	for i := 0; i <= 128; i++ {
 		val := byte(i)
 		temp[attackPos] = val
-		//		res, err := oracle.ConsistentAESECB.Encrypt(temp)
 		res, err := oracle.Encrypt(temp)
 
 		if err != nil {

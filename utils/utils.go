@@ -448,7 +448,7 @@ func (o *AESECBOracle) Encrypt(txt []byte) ([]byte, error) {
 	if o.usePrefix {
 		d = o.prefix
 	}
-	//d = join(txt, o.hidden)
+
 	d = append(d, txt...)
 	d = append(d, o.hidden...)
 	return o.ConsistentAESECB.Encrypt(d)
