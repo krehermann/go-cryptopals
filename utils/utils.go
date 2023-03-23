@@ -379,17 +379,43 @@ const (
 	AESCBC
 )
 
-func DetectAES128ECB(data []byte) float64 {
+func appendIfNotExists(appendable []int, toAppend ...int) []int {
+	out := appendable
+	for _, x := range toAppend {
+		exists := false
+		for _, val := range appendable {
+			if x == val {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+func DetectAES128ECB(data []byte, blockSize int) (float64, map[string][]int) {
 	var score float64
-	chunks := chunk(data, 16)
+	matchingOffsets := make(map[string][]int)
+	chunks := chunk(data, blockSize)
 	for i, chnk := range chunks {
 		for j := i + 1; j < len(chunks); j++ {
 			if bytes.Equal(chunks[j], chnk) {
 				score += 1
+				s := hex.EncodeToString(chnk)
+				mtchIdxs, exists := matchingOffsets[s]
+				if !exists {
+					mtchIdxs = make([]int, 0)
+				}
+				mtchIdxs = appendIfNotExists(mtchIdxs, i, j)
+				matchingOffsets[s] = mtchIdxs
 			}
 		}
 	}
-	return score
+
+	return score, matchingOffsets
 }
 
 func PKCS7(data []byte, padTo int) []byte {
