@@ -327,7 +327,7 @@ func TestSet1Challenge8(t *testing.T) {
 	for i, line := range lines {
 		enc, err := hex.DecodeString(line)
 		require.NoError(t, err)
-		score := DetectAES128ECB(enc)
+		score, _ := DetectAES128ECB(enc, 16)
 		t.Logf("score %f i %d", score, i)
 		if score > best {
 
@@ -436,7 +436,7 @@ func TestAESOracle_Encrypt(t *testing.T) {
 	}
 }
 
-func TestSet2Challenge12(t *testing.T) {
+func TestBreakAESECBOracle(t *testing.T) {
 	b4cyphrTxt := `Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkg
 aGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBq
 dXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUg
@@ -445,110 +445,209 @@ YnkK`
 	cyphr, err := base64.RawStdEncoding.DecodeString(b4cyphrTxt)
 	require.NoError(t, err)
 
-	oracle, err := NewAESECBOracle(cyphr, false)
-	require.NoError(t, err)
+	var maxBlockSize = 32
+	t.Run("no prefix", func(t *testing.T) {
 
-	// determine the block size
-	// there are 3 possibilities 16, 24, 32
+		oracle, err := NewAESECBOracle(cyphr, false)
+		require.NoError(t, err)
 
-	prefix := make([]byte, 32)
-	for j := 0; j < len(prefix); j++ {
-		prefix[j] = 'A'
-	}
+		// determine the block size
+		// there are 3 possibilities 16, 24, 32
 
-	var blockSize int
-	for i := 0; i < 3; i++ {
-		var l int
-		switch i {
-		case 0:
-			l = 16
-		case 1:
-			l = 24
-		case 2:
-			l = 32
-		default:
-			assert.FailNow(t, "block size search out of range")
+		prefix := make([]byte, 2*maxBlockSize+1)
+		for j := 0; j < len(prefix); j++ {
+			prefix[j] = 'A'
 		}
 
-		d := join(prefix[:16], cyphr)
-		runner := join(prefix[:17], cyphr)
+		var blockSize int
+		for i := 0; i < 3; i++ {
+			var l int
+			switch i {
+			case 0:
+				l = 16
+			case 1:
+				l = 24
+			case 2:
+				l = 32
+			default:
+				assert.FailNow(t, "block size search out of range")
+			}
 
-		enc, err := oracle.Encrypt(d)
-		require.NoError(t, err)
+			d := prefix[:l]
+			d2 := prefix[:l+1]
 
-		encRunner, err := oracle.Encrypt(runner)
-		require.NoError(t, err)
+			enc, err := oracle.Encrypt(d)
+			require.NoError(t, err)
 
-		if bytes.Equal(enc[:l], encRunner[:l]) {
-			blockSize = l
-			break
+			encRunner, err := oracle.Encrypt(d2)
+			require.NoError(t, err)
+
+			if bytes.Equal(enc[:l], encRunner[:l]) {
+				blockSize = l
+				break
+			}
 		}
-	}
 
-	assert.Equal(t, oracle.ciphr.BlockSize(), blockSize)
+		assert.Equal(t, oracle.ciphr.BlockSize(), blockSize)
 
-	// confirm that the encryption is ecb. if we input a
-	// slice of len > 2*block  containing the same value, then
-	// the first two blocks will be equal under ECB
-	ecbPrefix := make([]byte, 2*blockSize+1)
-	for i := range ecbPrefix {
-		ecbPrefix[i] = 'A'
-	}
-	d := join(ecbPrefix, cyphr)
-	enc, err := oracle.Encrypt(d)
-	require.NoError(t, err)
-	assert.True(t, bytes.Equal(enc[:blockSize], enc[blockSize:2*blockSize]))
+		// confirm that the encryption is ecb. if we input a
+		// slice of len > 2*block  containing the same value, then
+		// the first two blocks will be equal under ECB
 
-	// decode a byte a time
-	// make a plaintext of length blocksize
-	// fix the first blocksize -1
-	// for every possible value of the Nth byte, call the oracle with (fixed key + nth byte) and save the first block in a map
-	// call the oracle with fixed key, len N-1. compare the returned first block to the map
-	// repeat using fix-key[:n-2] + answer
-	// once the first block is decoded, repeat the process but update the fixed key to the decrypted value of the first block
-	// and attack the second block
+		enc, err := oracle.Encrypt(prefix)
+		require.NoError(t, err)
+		assert.True(t, bytes.Equal(enc[:blockSize], enc[blockSize:2*blockSize]))
 
-	result := make([]byte, 0)
-	prependedResult := make([]byte, 0)
-	for i := 0; i < len(cyphr); i++ {
+		// decode a byte a time
+		// make a plaintext of length blocksize
+		// fix the first blocksize -1
+		// for every possible value of the Nth byte, call the oracle with (fixed key + nth byte) and save the first block in a map
+		// call the oracle with fixed key, len N-1. compare the returned first block to the map
 
-		block := i / blockSize
-		//prepend a static block to result
-		prependedResult = append(prependedResult, prefix[:blockSize]...)
-		prependedResult = append(prependedResult, result...)
+		result := make([]byte, 0)
+		prependedResult := make([]byte, 0)
+		for i := 0; i < len(cyphr); i++ {
 
-		// the attack prefix is the last blockSize-1 bytes of the prepended result
-		attck := prependedResult[len(prependedResult)-(blockSize-1):]
-		require.Len(t, attck, blockSize-1)
+			block := i / blockSize
+			//prepend a static block to result
+			prependedResult = append(prependedResult, prefix[:blockSize]...)
+			prependedResult = append(prependedResult, result...)
 
-		solutions, err := generateAttackMap(oracle, attck, block, blockSize)
+			// the attack prefix is the last blockSize-1 bytes of the prepended result
+			attck := prependedResult[len(prependedResult)-(blockSize-1):]
+			require.Len(t, attck, blockSize-1)
+
+			solutions, err := generateAttackMap(oracle, attck, block, blockSize)
+			require.NoError(t, err)
+
+			// the bytes to send to the oracle input
+			// must pad such that our input + the hidden data (in cyphr)
+			// aligns so that the byte we are tried to decode
+			// is the last byte in a block.
+			// since `i` the length of the current result,
+			// we what the `ith` byte of the hidden cyphr data
+			// to be that last byte in a block
+
+			// padLen is the number of bytes needed to
+			// pre-pad the cyphr for it's ith byte to
+			// be the last byte in a block
+			padLen := (blockSize - 1) - (i % blockSize)
+			attackInput := prependedResult[:padLen]
+			require.Len(t, attackInput, padLen)
+			//hiddenInput := join(attackInput, cyphr)
+
+			got, err := oracle.Encrypt(attackInput)
+			require.NoError(t, err)
+			result, err = updateResult(result, got, blockSize, solutions)
+			require.NoError(t, err, "iter %d", i)
+
+		}
+		// we happen to know the ground truth plain text
+		want := string(cyphr)
+		require.Equal(t, want, string(result))
+	})
+
+	t.Run("with prefix", func(t *testing.T) {
+
+		oracle, err := NewAESECBOracle(cyphr, true)
 		require.NoError(t, err)
 
-		// the bytes to send to the oracle input
-		// must pad such that our input + the hidden data (in cyphr)
-		// aligns so that the byte we are tried to decode
-		// is the last byte in a block.
-		// since `i` the length of the current result,
-		// we what the `ith` byte of the hidden cyphr data
-		// to be that last byte in a block
+		// determine the block size
+		// there are 3 possibilities 16, 24, 32
 
-		// padLen is the number of bytes needed to
-		// pre-pad the cyphr for it's ith byte to
-		// be the last byte in a block
-		padLen := (blockSize - 1) - (i % blockSize)
-		attackInput := prependedResult[:padLen]
-		require.Len(t, attackInput, padLen)
-		//hiddenInput := join(attackInput, cyphr)
+		prefix := make([]byte, 2*maxBlockSize+1)
+		for j := 0; j < len(prefix); j++ {
+			prefix[j] = 'A'
+		}
 
-		got, err := oracle.Encrypt(attackInput)
+		var blockSize int
+		for i := 0; i < 3; i++ {
+			var l int
+			switch i {
+			case 0:
+				l = 16
+			case 1:
+				l = 24
+			case 2:
+				l = 32
+			default:
+				assert.FailNow(t, "block size search out of range")
+			}
+
+			d := prefix[:l]
+			d2 := prefix[:l+1]
+
+			enc, err := oracle.Encrypt(d)
+			require.NoError(t, err)
+
+			encRunner, err := oracle.Encrypt(d2)
+			require.NoError(t, err)
+
+			if bytes.Equal(enc[:l], encRunner[:l]) {
+				blockSize = l
+				break
+			}
+		}
+
+		require.Equal(t, oracle.ciphr.BlockSize(), blockSize)
+
+		// confirm that the encryption is ecb. if we input a
+		// slice of len > 2*block  containing the same value, then
+		// the first two blocks will be equal under ECB
+
+		enc, err := oracle.Encrypt(prefix)
 		require.NoError(t, err)
-		result, err = updateResult(result, got, blockSize, solutions)
-		require.NoError(t, err, "iter %d", i)
+		require.True(t, bytes.Equal(enc[:blockSize], enc[blockSize:2*blockSize]))
 
-	}
-	// we happen to know the ground truth plain text
-	want := string(cyphr)
-	require.Equal(t, want, string(result))
+		// decode a byte a time
+		// make a plaintext of length blocksize
+		// fix the first blocksize -1
+		// for every possible value of the Nth byte, call the oracle with (fixed key + nth byte) and save the first block in a map
+		// call the oracle with fixed key, len N-1. compare the returned first block to the map
+
+		result := make([]byte, 0)
+		prependedResult := make([]byte, 0)
+		for i := 0; i < len(cyphr); i++ {
+
+			block := i / blockSize
+			//prepend a static block to result
+			prependedResult = append(prependedResult, prefix[:blockSize]...)
+			prependedResult = append(prependedResult, result...)
+
+			// the attack prefix is the last blockSize-1 bytes of the prepended result
+			attck := prependedResult[len(prependedResult)-(blockSize-1):]
+			require.Len(t, attck, blockSize-1)
+
+			solutions, err := generateAttackMap(oracle, attck, block, blockSize)
+			require.NoError(t, err)
+
+			// the bytes to send to the oracle input
+			// must pad such that our input + the hidden data (in cyphr)
+			// aligns so that the byte we are tried to decode
+			// is the last byte in a block.
+			// since `i` the length of the current result,
+			// we what the `ith` byte of the hidden cyphr data
+			// to be that last byte in a block
+
+			// padLen is the number of bytes needed to
+			// pre-pad the cyphr for it's ith byte to
+			// be the last byte in a block
+			padLen := (blockSize - 1) - (i % blockSize)
+			attackInput := prependedResult[:padLen]
+			require.Len(t, attackInput, padLen)
+			//hiddenInput := join(attackInput, cyphr)
+
+			got, err := oracle.Encrypt(attackInput)
+			require.NoError(t, err)
+			result, err = updateResult(result, got, blockSize, solutions)
+			require.NoError(t, err, "iter %d", i)
+
+		}
+		// we happen to know the ground truth plain text
+		want := string(cyphr)
+		require.Equal(t, want, string(result))
+	})
+
 }
 
 func generateAttackMap(oracle *AESECBOracle, attackBuf []byte, block, blockSize int) (map[string]byte, error) {
