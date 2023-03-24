@@ -76,7 +76,7 @@ func (v *Vigenere) Decrypt(data []byte) (Result, error) {
 		scoreCh <- c
 	}
 	close(scoreCh)
-	best, _ := ls.SimpleEnglishMax(context.Background(), scoreCh) //ls.MaxConfidence(context.Background(), lingua.English, scoreCh)
+	best, _ := ls.SimpleEnglishMax(context.Background(), scoreCh)
 	//gross...
 	vc := best.(*vigenereCandidate)
 	return Result{
