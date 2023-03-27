@@ -397,25 +397,26 @@ func appendIfNotExists(appendable []int, toAppend ...int) []int {
 }
 
 func DetectAES128ECB(data []byte, blockSize int) (float64, map[string][]int) {
-	var score float64
+	var score int
 	matchingOffsets := make(map[string][]int)
 	chunks := chunk(data, blockSize)
 	for i, chnk := range chunks {
 		for j := i + 1; j < len(chunks); j++ {
 			if bytes.Equal(chunks[j], chnk) {
-				score += 1
 				s := hex.EncodeToString(chnk)
 				mtchIdxs, exists := matchingOffsets[s]
 				if !exists {
 					mtchIdxs = make([]int, 0)
 				}
+				l := len(mtchIdxs)
 				mtchIdxs = appendIfNotExists(mtchIdxs, i, j)
+				score += len(mtchIdxs) - l
 				matchingOffsets[s] = mtchIdxs
 			}
 		}
 	}
 
-	return score, matchingOffsets
+	return float64(score), matchingOffsets
 }
 
 func PKCS7(data []byte, padTo int) []byte {

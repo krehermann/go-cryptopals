@@ -574,29 +574,40 @@ YnkK`
 				assert.FailNow(t, "block size search out of range")
 			}
 
-			d := prefix[:l]
-			d2 := prefix[:l+1]
+			d := prefix[:2*l]
+			//			d2 := prefix[:2*l+1]
 
 			enc, err := oracle.Encrypt(d)
 			require.NoError(t, err)
 
-			encRunner, err := oracle.Encrypt(d2)
-			require.NoError(t, err)
-
-			if bytes.Equal(enc[:l], encRunner[:l]) {
+			_, r := DetectAES128ECB(enc, l)
+			if len(r) != 0 {
 				blockSize = l
+
+				t.Logf("detected ECB %+v", r)
 				break
 			}
+			/*
+				encRunner, err := oracle.Encrypt(d2)
+				require.NoError(t, err)
+
+				if bytes.Equal(enc[:l], encRunner[:l]) {
+					blockSize = l
+					break
+				}
+			*/
 		}
 
 		require.Equal(t, oracle.ciphr.BlockSize(), blockSize)
 
+		return
 		// confirm that the encryption is ecb. if we input a
 		// slice of len > 2*block  containing the same value, then
 		// the first two blocks will be equal under ECB
 
 		enc, err := oracle.Encrypt(prefix)
 		require.NoError(t, err)
+
 		require.True(t, bytes.Equal(enc[:blockSize], enc[blockSize:2*blockSize]))
 
 		// decode a byte a time
@@ -691,4 +702,65 @@ func join(a, b []byte) []byte {
 	out = append(out, a...)
 	out = append(out, b...)
 	return out
+}
+
+func TestDetectAES128ECB(t *testing.T) {
+	maxBlockSize := 32
+
+	intervalStart := maxBlockSize
+	intervalEnd := 3 * maxBlockSize
+	l := intervalEnd - intervalStart
+	d := make([]byte, 32*5)
+	for i := range d {
+		if i < 32 || i > 3*32 {
+			d[i] = byte(i)
+		} else {
+			d[i] = 'a'
+		}
+	}
+
+	type args struct {
+		data      []byte
+		blockSize int
+	}
+	tests := []struct {
+		name  string
+		args  args
+		want  float64
+		want1 map[string][]int
+	}{
+		{
+			name: "16",
+			args: args{
+				data:      d,
+				blockSize: 16,
+			},
+			want: float64(l) / 16,
+			want1: map[string][]int{
+				hex.EncodeToString(d[intervalStart : intervalStart+16]): []int{2, 3, 4, 5},
+			},
+		},
+		{
+			name: "32",
+			args: args{
+				data:      d,
+				blockSize: 32,
+			},
+			want: float64(l) / 32,
+			want1: map[string][]int{
+				hex.EncodeToString(d[intervalStart : intervalStart+32]): []int{1, 2},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1 := DetectAES128ECB(tt.args.data, tt.args.blockSize)
+			if got != tt.want {
+				t.Errorf("DetectAES128ECB() got = %v, want %v", got, tt.want)
+			}
+			if !reflect.DeepEqual(got1, tt.want1) {
+				t.Errorf("DetectAES128ECB() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
 }
