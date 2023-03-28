@@ -697,13 +697,6 @@ func updateResult(currentResult, cyphr []byte, blockSize int, solutionMap map[st
 	return x, nil
 }
 
-func join(a, b []byte) []byte {
-	out := make([]byte, 0, len(a)+len(b))
-	out = append(out, a...)
-	out = append(out, b...)
-	return out
-}
-
 func TestDetectAES128ECB(t *testing.T) {
 	maxBlockSize := 32
 
