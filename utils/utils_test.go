@@ -691,6 +691,7 @@ func updateResult(currentResult, cyphr []byte, blockSize int, solutionMap map[st
 	if !exists {
 		return nil, fmt.Errorf("attack result %s not in solution map", s)
 	}
+
 	x := make([]byte, 0)
 	x = append(x, currentResult...)
 	x = append(x, decodeByte)
