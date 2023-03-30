@@ -555,12 +555,14 @@ YnkK`
 		// determine the block size
 		// there are 3 possibilities 16, 24, 32
 
-		prefix := make([]byte, 2*maxBlockSize+1)
+		prefix := make([]byte, 4*maxBlockSize+1)
 		for j := 0; j < len(prefix); j++ {
 			prefix[j] = 'A'
 		}
 
 		var blockSize int
+		var blockRepMap map[string][]int
+		var encryptedRes []byte
 		for i := 0; i < 3; i++ {
 			var l int
 			switch i {
@@ -574,41 +576,53 @@ YnkK`
 				assert.FailNow(t, "block size search out of range")
 			}
 
-			d := prefix[:2*l]
-			//			d2 := prefix[:2*l+1]
+			// in general need n+1 blocks of known, repeative input to generate
+			// n consecutive hack blocks -- need one for padding
+			// this also serves to confirm that the oracle is using ECB
+			d := prefix[:3*l]
 
 			enc, err := oracle.Encrypt(d)
 			require.NoError(t, err)
 
 			_, r := DetectAES128ECB(enc, l)
+
 			if len(r) != 0 {
 				blockSize = l
-
+				blockRepMap = r
+				encryptedRes = enc
 				t.Logf("detected ECB %+v", r)
 				break
 			}
-			/*
-				encRunner, err := oracle.Encrypt(d2)
-				require.NoError(t, err)
 
-				if bytes.Equal(enc[:l], encRunner[:l]) {
-					blockSize = l
-					break
-				}
-			*/
 		}
 
 		require.Equal(t, oracle.ciphr.BlockSize(), blockSize)
 
+		// we know the blocksize and the block index of the first repeating elements
+		// now determine the length of the hidden, random prefix so we can attack with
+		// the block-at-a-time strategy
+
+		require.Len(t, blockRepMap, 1)
+		var attackIdxs []int
+		for _, v := range blockRepMap {
+			attackIdxs = v
+		}
+		sort.Ints(attackIdxs)
+		startIdx := attackIdxs[0]
+		wanted := encryptedRes[0 : blockSize*(startIdx+1)]
+		padLen := -1
+		for i := 0; i < 2*blockSize; i++ {
+			pad := prefix[0:prefix[i]]
+			got, err := oracle.Encrypt(pad)
+			require.NoError(t, err)
+			if bytes.Equal(got[0:len(wanted)], wanted) {
+				padLen = i
+				break
+			}
+		}
+		require.True(t, padLen >= 0)
+		t.Logf("pad length %d", padLen)
 		return
-		// confirm that the encryption is ecb. if we input a
-		// slice of len > 2*block  containing the same value, then
-		// the first two blocks will be equal under ECB
-
-		enc, err := oracle.Encrypt(prefix)
-		require.NoError(t, err)
-
-		require.True(t, bytes.Equal(enc[:blockSize], enc[blockSize:2*blockSize]))
 
 		// decode a byte a time
 		// make a plaintext of length blocksize
