@@ -622,7 +622,9 @@ YnkK`
 		}
 		require.True(t, padLen >= 0)
 		t.Logf("pad length %d", padLen)
-		return
+
+		hiddenPrefixLen := blockSize*(startIdx+1) - padLen
+		t.Logf("prefix len %d", hiddenPrefixLen)
 
 		// decode a byte a time
 		// make a plaintext of length blocksize
