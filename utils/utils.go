@@ -13,6 +13,7 @@ import (
 	"math"
 	"math/big"
 	"math/bits"
+	"strings"
 
 	"github.com/pemistahl/lingua-go"
 )
@@ -479,4 +480,30 @@ func (o *AESECBOracle) Encrypt(txt []byte) ([]byte, error) {
 	d = append(d, txt...)
 	d = append(d, o.hidden...)
 	return o.ConsistentAESECB.Encrypt(d)
+}
+
+type orderedKey struct {
+	position int
+	K        string
+}
+
+type CookieParser struct {
+	m map[string]orderedKey
+}
+
+func (c *CookieParser) Parse(cookie string) error {
+	if c.m == nil {
+		c.m = map[string]orderedKey{}
+	}
+	pairs := strings.Split(cookie, "&")
+	for i, pair := range pairs {
+		parts := strings.Split(pair, "=")
+		if len(parts) != 2 {
+			return fmt.Errorf("bad input %s at %s", cookie, pair)
+		}
+		c.m[parts[0]] = orderedKey{
+			position: i,
+			K:        parts[1]}
+	}
+	return nil
 }
