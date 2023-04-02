@@ -507,3 +507,34 @@ func (c *CookieParser) Parse(cookie string) error {
 	}
 	return nil
 }
+
+type cookie struct {
+	email string
+	uid   int
+	role  string
+}
+
+func (c *cookie) encode() string {
+	var result string
+
+	result = fmt.Sprintf("emal=%s", eatRunes(c.email))
+	result = fmt.Sprintf("%s&uid=%d", result, c.uid)
+	result = fmt.Sprintf("%s&role=%s", result, c.role)
+	return result
+
+}
+
+func eatRunes(s string) string {
+	var result string
+	for _, r := range s {
+		if r == '&' || r == '=' {
+			continue
+		} else {
+			result = result + string(r)
+		}
+	}
+	return result
+}
+func profile(email string) cookie {
+
+}
