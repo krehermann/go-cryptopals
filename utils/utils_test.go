@@ -11,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/pemistahl/lingua-go"
@@ -832,6 +833,67 @@ func TestAESECDRoundTrip(t *testing.T) {
 	require.Equal(t, string(got), m)
 }
 
+func TestSetC13(t *testing.T) {
+	// with a user selected email we end with an ecb encrypted value of
+	// `email=foo@bar.com&uid=10&role=user` and want to make this into and admin profile
+	// we control the beginning, ie the email and want to change the end
+	// bc we control the beginning we can make a block that ends with `role=` by
+	// choosing an appropriate len email address
+	// then we would need to copy and paste the encrypted value of `admin` in the last block
+	// how do we get that??
+	// the trick is assuming or knowing that pkcs7 padding in the last block
+	// with that assumption, you can craft another email=.. prefix that is the block len and
+	// append pksc7(admin) to it, so that the 2nd block is the encrypted value of admin
+
+	// len of email to push `role` to last block
+	blockSize := 16
+	domain := "abc.com"
+	emailLen := blockSize - (len("email=")+len(fmt.Sprintf("@%s", domain))+len("&uid=7&role="))%blockSize
+
+	var userName string
+	for i := 0; i < emailLen; i++ {
+		userName += "X"
+	}
+
+	addr := fmt.Sprintf("%s@%s", userName, domain)
+
+	p := profileFor(addr)
+
+	k := make([]byte, 16)
+	n, err := rand.Read(k)
+	require.NoError(t, err)
+	require.Equal(t, n, 16)
+	oracle, err := NewAES(k, AESECB)
+	require.NoError(t, err)
+	truthVal, err := oracle.Encrypt([]byte(p))
+	require.NoError(t, err)
+
+	hackLen := blockSize - (len("email=")+len(fmt.Sprintf("@%s", domain)))%blockSize
+	var hackUserName string
+	for i := 0; i < hackLen; i++ {
+		hackUserName += "Q"
+	}
+	hackEmail := fmt.Sprintf("%s@%s", hackUserName, domain)
+	adminBlock := PKCS7([]byte("admin"), blockSize)
+
+	//hackInput := make([]byte, 0)
+	hackInput := []byte(hackEmail)
+	hackInput = append(hackInput, adminBlock...)
+
+	hackProfile := profileFor(string(hackInput))
+	hackVal, err := oracle.Encrypt([]byte(hackProfile))
+	require.NoError(t, err)
+
+	cutAndPasteVal := hackVal[blockSize : 2*blockSize]
+
+	hacked := truthVal[:len(truthVal)-blockSize]
+	hacked = append(hacked, cutAndPasteVal...)
+
+	adminProfile, err := oracle.Decrypt(hacked)
+	require.NoError(t, err)
+	t.Logf("%s", adminProfile)
+	require.True(t, strings.HasSuffix(string(adminProfile), "role=admin"))
+}
 func TestCookieParser(t *testing.T) {
 	p := &CookieParser{}
 	want := "email=x@y.com&uid=1&role=user"
