@@ -209,8 +209,13 @@ func NewAES(key []byte, mode AESMode, opts ...AESOpt) (*AES, error) {
 }
 
 func (a *AES) Encrypt(src []byte) ([]byte, error) {
-	result := make([]byte, len(src))
 	blockSize := a.ciphr.BlockSize()
+	padLen := len(src) % blockSize
+	if padLen != 0 {
+		padLen = blockSize - padLen
+	}
+	src = PKCS7(src, len(src)+padLen)
+	result := make([]byte, len(src))
 
 	switch a.mode {
 	case AESECB:
@@ -257,7 +262,9 @@ func (a *AES) Decrypt(src []byte) ([]byte, error) {
 		}
 	}
 
-	return result, nil
+	// drop padding
+	r := dropPKCS7(result, a.ciphr.BlockSize())
+	return r, nil
 }
 
 type AESMode int
@@ -435,6 +442,26 @@ func PKCS7(data []byte, padTo int) []byte {
 	return out
 }
 
+func dropPKCS7(data []byte, blockSize int) []byte {
+	// read last byte
+	x := data[len(data)-1]
+	v := int(x)
+	if v > blockSize {
+		return data
+	}
+
+	expected := make([]byte, v)
+	for i := 0; i < v; i++ {
+		expected[i] = byte(v)
+	}
+
+	if bytes.Equal(data[len(data)-v:], expected) {
+		return data[:len(data)-v]
+	}
+
+	return data
+}
+
 type AESECBOracle struct {
 	usePrefix bool
 	prefix    []byte
@@ -484,7 +511,7 @@ func (o *AESECBOracle) Encrypt(txt []byte) ([]byte, error) {
 
 type orderedKey struct {
 	position int
-	K        string
+	V        string
 }
 
 type CookieParser struct {
@@ -503,9 +530,18 @@ func (c *CookieParser) Parse(cookie string) error {
 		}
 		c.m[parts[0]] = orderedKey{
 			position: i,
-			K:        parts[1]}
+			V:        parts[1]}
 	}
 	return nil
+}
+
+func (c *CookieParser) encode() string {
+	tempKV := make([]string, len(c.m))
+
+	for k, v := range c.m {
+		tempKV[v.position] = fmt.Sprintf("%s=%s", k, v.V)
+	}
+	return strings.Join(tempKV, "&")
 }
 
 type cookie struct {
@@ -517,7 +553,7 @@ type cookie struct {
 func (c *cookie) encode() string {
 	var result string
 
-	result = fmt.Sprintf("emal=%s", eatRunes(c.email))
+	result = fmt.Sprintf("email=%s", eatRunes(c.email))
 	result = fmt.Sprintf("%s&uid=%d", result, c.uid)
 	result = fmt.Sprintf("%s&role=%s", result, c.role)
 	return result
@@ -535,6 +571,19 @@ func eatRunes(s string) string {
 	}
 	return result
 }
-func profile(email string) cookie {
 
+func profileFor(email string) string {
+	/*
+		p := &CookieParser{}
+
+		p.Parse(eatRunes(email))
+
+		return p.encode()
+	*/
+	var result string
+
+	result = fmt.Sprintf("email=%s", eatRunes(email))
+	result = fmt.Sprintf("%s&uid=%d", result, 7)
+	result = fmt.Sprintf("%s&role=%s", result, "user")
+	return result
 }

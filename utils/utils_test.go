@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -770,6 +771,99 @@ func TestDetectAES128ECB(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got1, tt.want1) {
 				t.Errorf("DetectAES128ECB() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
+}
+
+func Test_cookie_encode(t *testing.T) {
+	type fields struct {
+		email string
+		uid   int
+		role  string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   string
+	}{
+		{
+			name: "meta",
+			fields: fields{
+				email: "me@hack.com&role=admin",
+				uid:   3,
+				role:  "superman",
+			},
+			want: "email=me@hack.comroleadmin&uid=3&role=superman",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &cookie{
+				email: tt.fields.email,
+				uid:   tt.fields.uid,
+				role:  tt.fields.role,
+			}
+			if got := c.encode(); got != tt.want {
+				t.Errorf("cookie.encode() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAESECDRoundTrip(t *testing.T) {
+	k := make([]byte, 16)
+	n, err := rand.Read(k)
+	require.NoError(t, err)
+	require.Equal(t, n, 16)
+
+	// not block size
+	m := "anything"
+
+	a, err := NewAES(k, AESECB)
+	require.NoError(t, err)
+	enc, err := a.Encrypt([]byte(m))
+	require.NoError(t, err)
+	t.Logf("enc %s, %d", enc, len(enc))
+
+	got, err := a.Decrypt(enc)
+	require.NoError(t, err)
+	t.Logf("got %s", got)
+	require.Equal(t, string(got), m)
+}
+
+func TestCookieParser(t *testing.T) {
+	p := &CookieParser{}
+	want := "email=x@y.com&uid=1&role=user"
+	err := p.Parse("email=x@y.com&uid=1&role=user")
+	require.NoError(t, err)
+	got := p.encode()
+	require.Equal(t, want, got)
+}
+
+func Test_dropPKCS7(t *testing.T) {
+	type args struct {
+		data      []byte
+		blockSize int
+	}
+	tests := []struct {
+		name string
+		args args
+		want []byte
+	}{
+		{
+			name: "drop 2",
+			args: args{
+				data:      []byte{'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 2, 2},
+				blockSize: 16,
+			},
+			want: []byte{'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := dropPKCS7(tt.args.data, tt.args.blockSize); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("dropPKCS7() = %v, want %v", got, tt.want)
 			}
 		})
 	}
