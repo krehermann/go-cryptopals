@@ -903,15 +903,16 @@ func TestCookieParser(t *testing.T) {
 	require.Equal(t, want, got)
 }
 
-func Test_dropPKCS7(t *testing.T) {
+func Test_truncatePKCS7(t *testing.T) {
 	type args struct {
 		data      []byte
 		blockSize int
 	}
 	tests := []struct {
-		name string
-		args args
-		want []byte
+		name    string
+		args    args
+		want    []byte
+		wantErr bool
 	}{
 		{
 			name: "drop 2",
@@ -921,12 +922,26 @@ func Test_dropPKCS7(t *testing.T) {
 			},
 			want: []byte{'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'},
 		},
+		{
+			name: "invalid",
+			args: args{
+				data:      []byte{'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 1, 2},
+				blockSize: 16,
+			},
+			wantErr: true,
+			want:    []byte{'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 1, 2},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := dropPKCS7(tt.args.data, tt.args.blockSize); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("dropPKCS7() = %v, want %v", got, tt.want)
+			got, err := truncatePKCS7(tt.args.data)
+			if !tt.wantErr {
+				require.NoError(t, err)
+
+			} else {
+				require.ErrorIs(t, err, ErrInvalidPKCS7)
 			}
+			require.True(t, bytes.Equal(got, tt.want))
 		})
 	}
 }

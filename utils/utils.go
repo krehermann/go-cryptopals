@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -263,8 +264,8 @@ func (a *AES) Decrypt(src []byte) ([]byte, error) {
 	}
 
 	// drop padding
-	r := dropPKCS7(result, a.ciphr.BlockSize())
-	return r, nil
+	return truncatePKCS7(result)
+
 }
 
 type AESMode int
@@ -442,13 +443,12 @@ func PKCS7(data []byte, padTo int) []byte {
 	return out
 }
 
-func dropPKCS7(data []byte, blockSize int) []byte {
+var ErrInvalidPKCS7 = errors.New("invalid PKCS7 padding")
+
+func truncatePKCS7(data []byte) ([]byte, error) {
 	// read last byte
 	x := data[len(data)-1]
 	v := int(x)
-	if v > blockSize {
-		return data
-	}
 
 	expected := make([]byte, v)
 	for i := 0; i < v; i++ {
@@ -456,10 +456,10 @@ func dropPKCS7(data []byte, blockSize int) []byte {
 	}
 
 	if bytes.Equal(data[len(data)-v:], expected) {
-		return data[:len(data)-v]
+		return data[:len(data)-v], nil
 	}
 
-	return data
+	return data, ErrInvalidPKCS7
 }
 
 type AESECBOracle struct {
